@@ -1,6 +1,7 @@
 #include "teca_cf_reader.h"
 #include "teca_file_util.h"
 #include "teca_cartesian_mesh.h"
+#include "teca_timer.h"
 
 #include <netcdf.h>
 #include <iostream>
@@ -298,9 +299,13 @@ teca_metadata teca_cf_reader::get_output_metadata(
     int root_rank = n_ranks - 1;
     if (rank == root_rank)
     {
+        teca_timer timer;
+        timer.start_event("total");
+
         vector<string> files;
         string path;
 
+        timer.start_event("scan_files");
         if (!this->file_name.empty())
         {
             // use file name
@@ -323,6 +328,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 return teca_metadata();
             }
         }
+        timer.end_event("scan_files");
 
         int ierr = 0;
         int file_id = 0;
@@ -343,11 +349,13 @@ teca_metadata teca_cf_reader::get_output_metadata(
         nc_type t_t = 0;
         int n_vars = 0;
 
+        timer.start_event("open_file");
         if ((ierr = nc_open(file.c_str(), NC_NOWRITE, &file_id)) != NC_NOERR)
         {
             TECA_ERROR("Failed to open " << file << endl << nc_strerror(ierr))
             return teca_metadata();
         }
+        timer.end_event("open_file");
 
         // initialize the file map
         this->initialize_handles(files);
@@ -356,6 +364,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
         this->handles[files[0]] = new teca_cf_reader::netcdf_handle(file_id);
 
         // query mesh axes
+        timer.start_event("x_axis_metadata");
         if (((ierr = nc_inq_dimid(file_id, x_axis_variable.c_str(), &x_id)) != NC_NOERR)
             || ((ierr = nc_inq_dimlen(file_id, x_id, &n_x)) != NC_NOERR)
             || ((ierr = nc_inq_varid(file_id, x_axis_variable.c_str(), &x_id)) != NC_NOERR)
@@ -368,7 +377,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 << nc_strerror(ierr))
             return teca_metadata();
         }
+        timer.end_event("x_axis_metadata");
 
+        timer.start_event("y_axis_metadata");
         if (!y_axis_variable.empty()
             && (((ierr = nc_inq_dimid(file_id, y_axis_variable.c_str(), &y_id)) != NC_NOERR)
             || ((ierr = nc_inq_dimlen(file_id, y_id, &n_y)) != NC_NOERR)
@@ -382,7 +393,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 << nc_strerror(ierr))
             return teca_metadata();
         }
+        timer.end_event("y_axis_metadata");
 
+        timer.start_event("z_axis_metadata");
         if (!z_axis_variable.empty()
             && (((ierr = nc_inq_dimid(file_id, z_axis_variable.c_str(), &z_id)) != NC_NOERR)
             || ((ierr = nc_inq_dimlen(file_id, z_id, &n_z)) != NC_NOERR)
@@ -396,7 +409,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 << nc_strerror(ierr))
             return teca_metadata();
         }
+        timer.end_event("z_axis_metadata");
 
+        timer.start_event("t_axis_metadata");
         if ((!t_axis_variable.empty()
             && (((ierr = nc_inq_dimid(file_id, t_axis_variable.c_str(), &t_id)) != NC_NOERR)
             || ((ierr = nc_inq_dimlen(file_id, t_id, &n_t)) != NC_NOERR)
@@ -410,7 +425,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 << nc_strerror(ierr))
             return teca_metadata();
         }
+        timer.end_event("t_axis_metadata");
 
+        timer.start_event("variables");
         // enumerate mesh arrays and their attributes
         if (((ierr = nc_inq_nvars(file_id, &n_vars)) != NC_NOERR))
         {
@@ -506,12 +523,14 @@ teca_metadata teca_cf_reader::get_output_metadata(
 
             atrs.insert(var_name, atts);
         }
+        timer.end_event("variables");
 
         this->metadata.insert("variables", vars);
         this->metadata.insert("attributes", atrs);
         this->metadata.insert("time variables", time_vars);
 
         // read coordinate arrays
+        timer.start_event("read_x_axis");
         p_teca_variant_array x_axis;
         NC_DISPATCH_FP(x_t,
             size_t x_0 = 0;
@@ -526,7 +545,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
             }
             x_axis = x;
             )
+        timer.end_event("read_x_axis");
 
+        timer.start_event("read_y_axis");
         p_teca_variant_array y_axis;
         if (!y_axis_variable.empty())
         {
@@ -552,7 +573,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 y_axis = y;
                 )
         }
+        timer.end_event("read_y_axis");
 
+        timer.start_event("read_z_axis");
         p_teca_variant_array z_axis;
         if (!z_axis_variable.empty())
         {
@@ -578,8 +601,10 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 z_axis = z;
                 )
         }
+        timer.end_event("read_z_axis");
 
         // collect time steps from this and the rest of the files
+        timer.start_event("collect_t_axis");
         vector<unsigned long> step_count;
         unsigned long number_of_time_steps = 0;
 
@@ -589,6 +614,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
             number_of_time_steps += n_t;
             step_count.push_back(n_t);
 
+            timer.start_event("read_t_axis");
             NC_DISPATCH_FP(t_t,
                 size_t t_0 = 0;
                 p_teca_variant_array_impl<NC_T> t = teca_variant_array_impl<NC_T>::New(n_t);
@@ -602,10 +628,12 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 }
                 t_axis = t;
                 )
+            timer.end_event("read_t_axis");
 
             size_t n_files = files.size();
             for (size_t i = 1; i < n_files; ++i)
             {
+                timer.start_event("open_file");
                 const string &file = path + PATH_SEP + files[i];
                 if ((ierr = nc_open(file.c_str(), NC_NOWRITE, &file_id)) != NC_NOERR)
                 {
@@ -613,10 +641,12 @@ teca_metadata teca_cf_reader::get_output_metadata(
                     TECA_ERROR("Failed to open " << file << endl << nc_strerror(ierr))
                     return teca_metadata();
                 }
+                timer.end_event("open_file");
 
                 // cache the file handle
                 this->handles[files[i]] = new teca_cf_reader::netcdf_handle(file_id);
 
+                timer.start_event("t_axis_metadata");
                 if (((ierr = nc_inq_dimid(file_id, t_axis_variable.c_str(), &t_id)) != NC_NOERR)
                     || ((ierr = nc_inq_dimlen(file_id, t_id, &n_t)) != NC_NOERR)
                     || ((ierr = nc_inq_varid(file_id, t_axis_variable.c_str(), &t_id)) != NC_NOERR)
@@ -628,10 +658,12 @@ teca_metadata teca_cf_reader::get_output_metadata(
                         << file << endl << nc_strerror(ierr))
                     return teca_metadata();
                 }
+                timer.end_event("t_axis_metadata");
 
                 number_of_time_steps += n_t;
                 step_count.push_back(n_t);
 
+                timer.start_event("read_t_axis");
                 NC_DISPATCH_FP(t_t,
                     size_t t_0 = 0;
                     p_teca_variant_array_impl<NC_T> t
@@ -655,6 +687,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
                         return teca_metadata();
                     }
                     )
+                timer.end_event("read_t_axis");
             }
         }
         else
@@ -668,6 +701,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 t_axis = t;
                 )
         }
+        timer.end_event("collect_t_axis");
 
         teca_metadata coords;
         coords.insert("x_variable", x_axis_variable);
@@ -709,6 +743,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
             }
         }
 #endif
+        timer.end_event("total");
     }
 #if defined(TECA_HAS_MPI)
     else
