@@ -1025,6 +1025,9 @@ const_p_teca_dataset teca_cf_reader::execute(unsigned int port,
         mesh->set_time_units(units);
     }
 
+    // pass the variable attributes
+    mesh->set_array_attributes(atrs);
+
     // figure out the mapping between our extent and netcdf
     // representation
     std::vector<std::string> mesh_dim_names;
