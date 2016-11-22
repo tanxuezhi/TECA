@@ -17,6 +17,10 @@ public:
     // set/get metadata
     TECA_DATASET_METADATA(whole_extent, unsigned long, 6, m_impl->metadata)
     TECA_DATASET_METADATA(extent, unsigned long, 6, m_impl->metadata)
+    TECA_DATASET_METADATA(x_coordinate_variable, std::string, 1, m_impl->metadata)
+    TECA_DATASET_METADATA(y_coordinate_variable, std::string, 1, m_impl->metadata)
+    TECA_DATASET_METADATA(z_coordinate_variable, std::string, 1, m_impl->metadata)
+    TECA_DATASET_METADATA(t_coordinate_variable, std::string, 1, m_impl->metadata)
 
     // get x coordinate array
     p_teca_variant_array get_x_coordinates()
@@ -40,14 +44,14 @@ public:
     { return m_coordinate_arrays->get("z"); }
 
     // set coordinate arrays
-    void set_x_coordinates(const p_teca_variant_array &a)
-    { m_coordinate_arrays->set("x", a); }
+    void set_x_coordinates(const std::string &name
+        const p_teca_variant_array &array);
 
-    void set_y_coordinates(const p_teca_variant_array &a)
-    { m_coordinate_arrays->set("y", a); }
+    void set_y_coordinates(const std::string &name
+        const p_teca_variant_array &array);
 
-    void set_z_coordinates(const p_teca_variant_array &a)
-    { m_coordinate_arrays->set("z", a); }
+    void set_z_coordinates(const std::string &name
+        const p_teca_variant_array &array);
 
     // copy data and metadata. shallow copy uses reference
     // counting, while copy duplicates the data.
