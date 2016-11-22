@@ -19,6 +19,12 @@ public:
     const teca_metadata &get_metadata() const
     { return m_impl->metadata; }
 
+    // set/get temporal metadata
+    TECA_DATASET_METADATA(time, double, 1, m_impl->metadata)
+    TECA_DATASET_METADATA(calendar, std::string, 1, m_impl->metadata)
+    TECA_DATASET_METADATA(time_units, std::string, 1, m_impl->metadata)
+    TECA_DATASET_METADATA(time_step, unsigned long, 1, m_impl->metadata)
+
     // get point centered data
     p_teca_array_collection get_point_arrays()
     { return m_impl->point_arrays; }
