@@ -3,6 +3,7 @@
 #include "teca_cartesian_mesh.h"
 #include "teca_thread_pool.h"
 #include "teca_coordinate_util.h"
+#include "teca_netcdf_util.h"
 
 #include <netcdf.h>
 #include <iostream>
@@ -17,6 +18,7 @@
 
 using std::endl;
 using std::cerr;
+using teca_netcdf_util::netcdf_handle;
 
 #if defined(TECA_HAS_MPI)
 #include <mpi.h>
@@ -25,111 +27,6 @@ using std::cerr;
 #if defined(TECA_HAS_BOOST)
 #include <boost/program_options.hpp>
 #endif
-
-// macro to help with netcdf data types
-#define NC_DISPATCH_FP(tc_, code_)                          \
-    switch (tc_)                                            \
-    {                                                       \
-    NC_DISPATCH_CASE(NC_FLOAT, float, code_)                \
-    NC_DISPATCH_CASE(NC_DOUBLE, double, code_)              \
-    default:                                                \
-        TECA_ERROR("netcdf type code_ " << tc_              \
-            << " is not a floating point type")             \
-    }
-#define NC_DISPATCH(tc_, code_)                             \
-    switch (tc_)                                            \
-    {                                                       \
-    NC_DISPATCH_CASE(NC_BYTE, char, code_)                  \
-    NC_DISPATCH_CASE(NC_UBYTE, unsigned char, code_)        \
-    NC_DISPATCH_CASE(NC_CHAR, char, code_)                  \
-    NC_DISPATCH_CASE(NC_SHORT, short int, code_)            \
-    NC_DISPATCH_CASE(NC_USHORT, unsigned short int, code_)  \
-    NC_DISPATCH_CASE(NC_INT, int, code_)                    \
-    NC_DISPATCH_CASE(NC_UINT, unsigned int, code_)          \
-    NC_DISPATCH_CASE(NC_INT64, long long, code_)            \
-    NC_DISPATCH_CASE(NC_UINT64, unsigned long long, code_)  \
-    NC_DISPATCH_CASE(NC_FLOAT, float, code_)                \
-    NC_DISPATCH_CASE(NC_DOUBLE, double, code_)              \
-    default:                                                \
-        TECA_ERROR("netcdf type code_ " << tc_              \
-            << " is not supported")                         \
-    }
-#define NC_DISPATCH_CASE(cc_, tt_, code_)   \
-    case cc_:                               \
-    {                                       \
-        using NC_T = tt_;                   \
-        code_                               \
-        break;                              \
-    }
-
-// to deal with fortran fixed length strings
-// which are not properly nulll terminated
-static void crtrim(char *s, long n)
-{
-    if (!s || (n == 0)) return;
-    char c = s[--n];
-    while ((n > 0) && ((c == ' ') || (c == '\n') ||
-        (c == '\t') || (c == '\r')))
-    {
-        s[n] = '\0';
-        c = s[--n];
-    }
-}
-
-// RAII for managing netcdf files
-class netcdf_handle
-{
-public:
-    // initialize with a handle returned from
-    // nc_open/nc_create etc
-    netcdf_handle(int h) : m_handle(h)
-    {}
-
-    // close the file during destruction
-    ~netcdf_handle()
-    { this->close(); }
-
-    // this is a move only class, and should
-    // only be initialized with an valid handle
-    netcdf_handle() = delete;
-    netcdf_handle(const netcdf_handle &) = delete;
-    void operator=(const netcdf_handle &) = delete;
-
-    // move construction takes ownership
-    // from the other object
-    netcdf_handle(netcdf_handle &&other)
-    {
-        m_handle = other.m_handle;
-        other.m_handle = 0;
-    }
-
-    // move assignment takes ownership
-    // from the other object
-    void operator=(netcdf_handle &&other)
-    {
-        this->close();
-        m_handle = other.m_handle;
-        other.m_handle = 0;
-    }
-
-    // close the file
-    void close()
-    {
-        if (m_handle)
-        {
-            nc_close(m_handle);
-            m_handle = 0;
-        }
-    }
-
-    // dereference a pointer to the object
-    // returns a reference to the handle
-    int &get()
-    { return m_handle; }
-
-private:
-    int m_handle;
-};
 
 // data and task types
 using read_variable_data_t = std::pair<unsigned long, p_teca_variant_array>;
@@ -659,7 +556,7 @@ teca_metadata teca_cf_reader::get_output_metadata(
                     buffer = static_cast<char*>(realloc(buffer, att_len + 1));
                     buffer[att_len] = '\0';
                     nc_get_att_text(file_id, i, att_name, buffer);
-                    crtrim(buffer, att_len);
+                    teca_netcdf_util::crtrim(buffer, att_len);
                     atts.insert(att_name, std::string(buffer));
                 }
             }
