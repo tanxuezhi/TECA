@@ -65,7 +65,7 @@ class teca_variant_array;
             || (varr = teca_py_iterator::new_variant_array(obj)))
             return varr;
 
-        PyErr_Format(PyExc_TypeError, "Failed to convert value");
+        TECA_PY_ERROR(1, PyExc_TypeError, "Failed to convert value")
         return nullptr;
     }
 
@@ -74,25 +74,29 @@ class teca_variant_array;
     unsigned long __len__()
     { return self->size(); }
 
-    void __setitem__(unsigned long i, PyObject *value)
+    PyObject *__setitem__(unsigned long i, PyObject *value)
     {
         teca_py_gil_state gil;
 
-#ifndef NDEBUG
         if (i >= self->size())
         {
-            PyErr_Format(PyExc_IndexError,
-                "index %lu is out of bounds in teca_variant_array "
-                " with size %lu", i, self->size());
-            return;
+            TECA_PY_ERROR(0, PyExc_IndexError,
+                "index " << i << " is out of bounds in teca_variant_array "
+                " with size " << self->size())
+            return nullptr;
         }
-#endif
+
+        Py_INCREF(Py_None);
+
         if (teca_py_array::set(self, i, value) ||
             teca_py_object::set(self, i, value))
-            return;
+            return Py_None;
 
-        PyErr_Format(PyExc_TypeError,
-            "failed to set value at index %lu", i);
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "failed to set value at index " <<  i)
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 
     PyObject *__getitem__(unsigned long i)
@@ -101,9 +105,9 @@ class teca_variant_array;
 
         if (i >= self->size())
         {
-            PyErr_Format(PyExc_IndexError,
-                "index %lu is out of bounds in teca_variant_array "
-                " with size %lu", i, self->size());
+            TECA_PY_ERROR(0, PyExc_IndexError,
+                "index " << i << " is out of bounds in teca_variant_array "
+                " with size " << self->size())
             return nullptr;
         }
 
@@ -117,8 +121,8 @@ class teca_variant_array;
             return teca_py_object::py_tt<NT>::new_object(varrt->get(i));
             )
 
-        PyErr_Format(PyExc_TypeError,
-            "failed to get value at index %lu", i);
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "failed to get value at index " << i)
         return nullptr;
     }
 
@@ -130,30 +134,50 @@ class teca_variant_array;
             teca_py_array::new_object(self));
     }
 
-    void append(PyObject *obj)
+    PyObject *append(PyObject *obj)
     {
         teca_py_gil_state gil;
+
+        Py_INCREF(Py_None);
 
         if (teca_py_object::append(self, obj)
             || teca_py_array::append(self, obj)
             || teca_py_sequence::append(self, obj))
-            return;
+            return Py_None;
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to convert value");
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "Failed to convert value")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 
-    void copy(PyObject *obj)
+    PyObject *copy(PyObject *obj)
     {
         teca_py_gil_state gil;
+
+        Py_INCREF(Py_None);
 
         if (teca_py_object::copy(self, obj)
             || teca_py_array::copy(self, obj)
             || teca_py_sequence::copy(self, obj))
-            return;
+            return Py_None;
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to convert value");
+        Py_DECREF(Py_None);
+
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "Failed to convert value")
+        return nullptr;
+    }
+
+    PyObject *set(unsigned long i, PyObject *value)
+    {
+        return teca_variant_array___setitem__(self, i, value);
+    }
+
+    PyObject *get(unsigned long i)
+    {
+        return teca_variant_array___getitem__(self, i);
     }
 }
 TECA_PY_DYNAMIC_VARIANT_ARRAY_CAST(double, double)
@@ -183,9 +207,11 @@ TECA_PY_DYNAMIC_VARIANT_ARRAY_CAST(unsigned long long, unsigned_long_long)
     TECA_PY_STR()
 
     /* md['name'] = value */
-    void __setitem__(const std::string &name, PyObject *value)
+    PyObject *__setitem__(const std::string &name, PyObject *value)
     {
         teca_py_gil_state gil;
+
+        Py_INCREF(Py_None);
 
         p_teca_variant_array varr;
         if ((varr = teca_py_object::new_variant_array(value))
@@ -194,10 +220,14 @@ TECA_PY_DYNAMIC_VARIANT_ARRAY_CAST(unsigned long long, unsigned_long_long)
             || (varr = teca_py_iterator::new_variant_array(value)))
         {
             self->insert(name, varr);
-            return;
+            return Py_None;
         }
-        PyErr_Format(PyExc_TypeError,
-            "Failed to convert value for key \"%s\"", name.c_str());
+
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "Failed to convert value for key \"" << name << "\"")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 
     /* return md['name'] */
@@ -208,8 +238,8 @@ TECA_PY_DYNAMIC_VARIANT_ARRAY_CAST(unsigned long long, unsigned_long_long)
         p_teca_variant_array varr = self->get(name);
         if (!varr)
         {
-            PyErr_Format(PyExc_KeyError,
-                "key \"%s\" not found", name.c_str());
+            TECA_PY_ERROR(0, PyExc_KeyError,
+                "key \"" << name << "\" not found")
             return nullptr;
         }
 
@@ -270,30 +300,36 @@ TECA_PY_DYNAMIC_VARIANT_ARRAY_CAST(unsigned long long, unsigned_long_long)
                 )
         }
 
-        return PyErr_Format(PyExc_TypeError,
-            "Failed to convert value for key \"%s\"", name.c_str());
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "Failed to convert value for key \"" << name << "\"")
+        return nullptr;
     }
 
-    void append(const std::string &name, PyObject *obj)
+    PyObject *append(const std::string &name, PyObject *obj)
     {
         teca_py_gil_state gil;
 
         teca_variant_array *varr = self->get(name).get();
         if (!varr)
         {
-            PyErr_Format(PyExc_KeyError,
-                "key \"%s\" not found", name.c_str());
-            return;
+            TECA_PY_ERROR(0, PyExc_KeyError,
+                "key \"" << name << "\" not found")
+            return nullptr;
         }
+
+        Py_INCREF(Py_None);
 
         if (teca_py_object::append(varr, obj)
             || teca_py_array::append(varr, obj)
             || teca_py_sequence::append(varr, obj)
             || teca_py_iterator::append(varr, obj))
-            return;
+            return Py_None;
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to convert value");
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "Failed to convert value")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 }
 %template(std_vector_metadata) std::vector<teca_metadata>;
@@ -318,18 +354,31 @@ class teca_dataset;
 
 /***************************************************************************/
 %define TECA_PY_DATASET_METADATA(_type, _name)
-    void set_## _name(PyObject *obj)
+    PyObject *set_## _name(PyObject *obj)
     {
         teca_py_gil_state gil;
 
-        TECA_PY_OBJECT_DISPATCH_NUM(obj,
-            self->set_ ## _name(teca_py_object::cpp_tt<
-                teca_py_object::py_tt<_type>::tag>::value(obj));
-            return;
+        Py_INCREF(Py_None);
+
+        // numpy scalars
+        TECA_PY_ARRAY_SCALAR_DISPATCH(obj,
+            self->set_ ## _name(teca_py_array::numpy_scalar_tt
+                <_type>::value(obj));
+            return Py_None;
             )
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to set property \"%s\"", #_name);
+        // regular Python objects
+        TECA_PY_OBJECT_DISPATCH_NUM(obj,
+            self->set_ ## _name(teca_py_object::cpp_tt
+                <teca_py_object::py_tt<_type>::tag>::value(obj));
+            return Py_None;
+            )
+
+        TECA_PY_ERROR(1, PyExc_TypeError,
+            "Failed to set property \"" #_name "\"")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 
     PyObject *get_## _name()
@@ -357,16 +406,18 @@ class teca_dataset;
         PyObject *list = teca_py_sequence::new_object(varr);
         if (!list)
         {
-            PyErr_Format(PyExc_TypeError,
-                "Failed to get property \"%s\"", # _name);
+            TECA_PY_ERROR(0, PyExc_TypeError,
+                "Failed to get property \"" # _name "\"")
         }
 
         return list;
     }
 
-    void set_## _name(PyObject *array)
+    PyObject *set_## _name(PyObject *array)
     {
         teca_py_gil_state gil;
+
+        Py_INCREF(Py_None);
 
         p_teca_variant_array varr;
         if ((varr = teca_py_array::new_variant_array(array))
@@ -374,11 +425,14 @@ class teca_dataset;
             || (varr = teca_py_iterator::new_variant_array(array)))
         {
             self->set_## _name(varr);
-            return;
+            return Py_None;
         }
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to set property \"%s\"", # _name);
+        TECA_PY_ERROR(0, PyExc_TypeError,
+            "Failed to set property \"" #_name "\"")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 %enddef
 
@@ -424,18 +478,31 @@ typedef std::pair<std::shared_ptr<teca_algorithm>, unsigned int> teca_algorithm_
 
 /***************************************************************************/
 %define TECA_PY_ALGORITHM_PROPERTY(_type, _name)
-    void set_## _name(PyObject *obj)
+    PyObject *set_## _name(PyObject *obj)
     {
         teca_py_gil_state gil;
 
+        Py_INCREF(Py_None);
+
+        // numpy scalars
+        TECA_PY_ARRAY_SCALAR_DISPATCH(obj,
+            self->set_ ## _name(teca_py_array::numpy_scalar_tt
+                <_type>::value(obj));
+            return Py_None;
+            )
+
+        // regular Python objects
         TECA_PY_OBJECT_DISPATCH_NUM(obj,
             self->set_ ## _name(teca_py_object::cpp_tt<
                 teca_py_object::py_tt<_type>::tag>::value(obj));
-            return;
+            return Py_None;
             )
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to set property \"%s\"", #_name);
+        TECA_PY_ERROR(1, PyExc_TypeError,
+            "Failed to set property \"" #_name "\"")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 
     PyObject *get_## _name()
@@ -463,16 +530,18 @@ typedef std::pair<std::shared_ptr<teca_algorithm>, unsigned int> teca_algorithm_
         PyObject *list = teca_py_sequence::new_object(varr);
         if (!list)
         {
-            PyErr_Format(PyExc_TypeError,
-                "Failed to get property \"%s\"", # _name);
+            TECA_PY_ERROR(0, PyExc_TypeError,
+                "Failed to get property \"" #_name "\"")
         }
 
         return list;
     }
 
-    void set_## _name ##s(PyObject *array)
+    PyObject *set_## _name ##s(PyObject *array)
     {
         teca_py_gil_state gil;
+
+        Py_INCREF(Py_None);
 
         p_teca_variant_array varr;
         if ((varr = teca_py_array::new_variant_array(array))
@@ -480,11 +549,14 @@ typedef std::pair<std::shared_ptr<teca_algorithm>, unsigned int> teca_algorithm_
             || (varr = teca_py_iterator::new_variant_array(array)))
         {
             self->set_## _name ##s(varr);
-            return;
+            return Py_None;
         }
 
-        PyErr_Format(PyExc_TypeError,
-            "Failed to set property \"%s\"", # _name);
+        TECA_PY_ERROR(1, PyExc_TypeError,
+            "Failed to set property \"" #_name "\"")
+
+        Py_DECREF(Py_None);
+        return nullptr;
     }
 %enddef
 
