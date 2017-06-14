@@ -4,6 +4,7 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
+#include <limits>
 #include <cstdlib>
 
 #include "teca_common.h"
@@ -106,7 +107,11 @@ STR_CODE -- string part of NumPy typename (see header files)
 CPP_T -- corresponding C++ type
 */
 template <typename cpp_t> struct numpy_scalar_tt
-{};
+{
+    enum { code = std::numeric_limits<int>::lowest() };
+    static bool is_type(PyObject*){ return false; }
+    static cpp_t value(PyObject*){ return cpp_t(); }
+};
 
 #define teca_py_array_numpy_scalar_tt_declare(CODE, STR_CODE, CPP_T)\
 template <> struct numpy_scalar_tt<CPP_T>                           \
