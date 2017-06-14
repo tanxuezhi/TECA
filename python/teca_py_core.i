@@ -42,6 +42,8 @@ class teca_variant_array;
 %ignore teca_variant_array::append(const teca_variant_array &other);
 %ignore teca_variant_array::append(const const_p_teca_variant_array &other);
 %ignore copy(const teca_variant_array &other);
+%ignore teca_variant_array::get;
+%ignore teca_variant_array::set;
 %include "teca_variant_array.h"
 %template(teca_double_array) teca_variant_array_impl<double>;
 %template(teca_float_array) teca_variant_array_impl<float>;
