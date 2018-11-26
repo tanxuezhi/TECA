@@ -67,6 +67,14 @@ using std::cerr;
         break;                              \
     }
 
+#if !defined(HDF5_THREAD_SAFE)
+// NetCDF 3 is not threadsafe. The HDF5 C-API can be compiled to be threadsafe,
+// but it is usually not. NetCDF uses HDF5-HL API to access HDF5, but HDF5-HL
+// API is not threadsafe without the --enable-unsupported flag. For all those
+// reasons it's best for the time being to protect all NetCDF I/O.
+static std::mutex g_netcdf_mutex;
+#endif
+
 // to deal with fortran fixed length strings
 // which are not properly nulll terminated
 static void crtrim(char *s, long n)
@@ -122,6 +130,9 @@ public:
     {
         if (m_handle)
         {
+#if !defined(HDF5_THREAD_SAFE)
+            std::lock_guard<std::mutex> lock(g_netcdf_mutex);
+#endif
             nc_close(m_handle);
             m_handle = 0;
         }
@@ -275,11 +286,17 @@ int teca_cf_reader_internals::get_handle(const std::string &path,
     // open the file
     std::string file_path = path + PATH_SEP + file;
     int ierr = 0;
+#if !defined(HDF5_THREAD_SAFE)
+    {std::lock_guard<std::mutex> lock(g_netcdf_mutex);
+#endif
     if ((ierr = nc_open(file_path.c_str(), NC_NOWRITE, &file_id)) != NC_NOERR)
     {
         TECA_ERROR("Failed to open " << file << ". " << nc_strerror(ierr))
         return -1;
     }
+#if !defined(HDF5_THREAD_SAFE)
+    }
+#endif
 
     // cache the handle
     it->second.second = new netcdf_handle(file_id);
@@ -357,6 +374,9 @@ public:
         size_t var_size = 0;
         nc_type var_type = 0;
 
+#if !defined(HDF5_THREAD_SAFE)
+        {std::lock_guard<std::mutex> lock(g_netcdf_mutex);
+#endif
         if (((ierr = nc_inq_dimid(file_id, m_variable.c_str(), &var_id)) != NC_NOERR)
             || ((ierr = nc_inq_dimlen(file_id, var_id, &var_size)) != NC_NOERR)
             || ((ierr = nc_inq_varid(file_id, m_variable.c_str(), &var_id)) != NC_NOERR)
@@ -384,6 +404,9 @@ public:
             m_reader_internals->close_handle(m_file);
             return std::make_pair(m_id, var);
             )
+#if !defined(HDF5_THREAD_SAFE)
+        }
+#endif
 
         // unsupported type
         m_reader_internals->close_handle(m_file);
@@ -601,7 +624,14 @@ teca_metadata teca_cf_reader::get_output_metadata(
             nc_type y_t = 0;
             nc_type z_t = 0;
             int n_vars = 0;
+            p_teca_variant_array x_axis;
+            p_teca_variant_array y_axis;
+            p_teca_variant_array z_axis;
+            p_teca_variant_array t_axis;
 
+#if !defined(HDF5_THREAD_SAFE)
+            {std::lock_guard<std::mutex> lock(g_netcdf_mutex);
+#endif
             if ((ierr = nc_open(file.c_str(), NC_NOWRITE, &file_id)) != NC_NOERR)
             {
                 TECA_ERROR("Failed to open " << file << endl << nc_strerror(ierr))
@@ -766,7 +796,6 @@ teca_metadata teca_cf_reader::get_output_metadata(
             this->internals->metadata.insert("time variables", time_vars);
 
             // read spatial coordinate arrays
-            p_teca_variant_array x_axis;
             NC_DISPATCH_FP(x_t,
                 size_t x_0 = 0;
                 p_teca_variant_array_impl<NC_T> x = teca_variant_array_impl<NC_T>::New(n_x);
@@ -781,7 +810,6 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 x_axis = x;
                 )
 
-            p_teca_variant_array y_axis;
             if (!y_axis_variable.empty())
             {
                 NC_DISPATCH_FP(y_t,
@@ -807,7 +835,6 @@ teca_metadata teca_cf_reader::get_output_metadata(
                     )
             }
 
-            p_teca_variant_array z_axis;
             if (!z_axis_variable.empty())
             {
                 NC_DISPATCH_FP(z_t,
@@ -832,6 +859,9 @@ teca_metadata teca_cf_reader::get_output_metadata(
                     z_axis = z;
                     )
             }
+#if !defined(HDF5_THREAD_SAFE)
+            }
+#endif
 
             // collect time steps from this and the rest of the files.
             // there are a couple of  performance issues on Lustre.
@@ -846,7 +876,6 @@ teca_metadata teca_cf_reader::get_output_metadata(
                 true, true, false);
 
             std::vector<unsigned long> step_count;
-            p_teca_variant_array t_axis;
             if (!t_axis_variable.empty())
             {
                 // assign the reads to threads
@@ -1222,7 +1251,11 @@ const_p_teca_dataset teca_cf_reader::execute(unsigned int port,
         // read
         p_teca_variant_array array;
         NC_DISPATCH(type,
+#if !defined(HDF5_THREAD_SAFE)
+            {std::lock_guard<std::mutex> lock(g_netcdf_mutex);
+#else
             std::lock_guard<std::mutex> lock(*file_mutex);
+#endif
             p_teca_variant_array_impl<NC_T> a = teca_variant_array_impl<NC_T>::New(mesh_size);
             if ((ierr = nc_get_vara(file_id,  id, &starts[0], &counts[0], a->get())) != NC_NOERR)
             {
@@ -1232,6 +1265,9 @@ const_p_teca_dataset teca_cf_reader::execute(unsigned int port,
                 continue;
             }
             array = a;
+#if !defined(HDF5_THREAD_SAFE)
+            }
+#endif
             )
         mesh->get_point_arrays()->append(arrays[i], array);
     }
@@ -1261,7 +1297,11 @@ const_p_teca_dataset teca_cf_reader::execute(unsigned int port,
         p_teca_variant_array array;
         size_t one = 1;
         NC_DISPATCH(type,
+#if !defined(HDF5_THREAD_SAFE)
+            {std::lock_guard<std::mutex> lock(g_netcdf_mutex);
+#else
             std::lock_guard<std::mutex> lock(*file_mutex);
+#endif
             p_teca_variant_array_impl<NC_T> a = teca_variant_array_impl<NC_T>::New(1);
             if ((ierr = nc_get_vara(file_id,  id, &starts[0], &one, a->get())) != NC_NOERR)
             {
@@ -1271,6 +1311,9 @@ const_p_teca_dataset teca_cf_reader::execute(unsigned int port,
                 continue;
             }
             array = a;
+#if !defined(HDF5_THREAD_SAFE)
+            }
+#endif
             )
         mesh->get_information_arrays()->append(time_vars[i], array);
     }
