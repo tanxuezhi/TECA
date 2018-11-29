@@ -44,7 +44,7 @@ namespace teca_py_iterator
 bool is_iterable(PyObject *obj)
 {
     PyObject *iter = nullptr;
-    if (PyString_Check(obj)|| !(iter = PyObject_GetIter(obj)))
+    if (PyUnicode_Check(obj) || !(iter = PyObject_GetIter(obj)))
     {
         PyErr_Clear();
         return false;

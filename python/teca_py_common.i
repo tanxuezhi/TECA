@@ -11,7 +11,7 @@
 
         std::ostringstream oss;
         self->to_stream(oss);
-        return PyString_FromString(oss.str().c_str());
+        return PyUnicode_FromString(oss.str().c_str());
     }
 %enddef
 

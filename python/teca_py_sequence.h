@@ -71,7 +71,7 @@ bool is_type(PyObject *seq)
 bool append(teca_variant_array *va, PyObject *seq)
 {
     // not a sequence
-    if (!PySequence_Check(seq) || PyString_Check(seq))
+    if (!PySequence_Check(seq) || PyUnicode_Check(seq))
         return false;
 
     // nothing to do
@@ -113,7 +113,7 @@ bool append(teca_variant_array *va, PyObject *seq)
 bool copy(teca_variant_array *va, PyObject *seq)
 {
     // not a sequence
-    if (!PySequence_Check(seq) || PyString_Check(seq))
+    if (!PySequence_Check(seq) || PyUnicode_Check(seq))
         return false;
 
     // nothing to do
@@ -158,7 +158,7 @@ bool copy(teca_variant_array *va, PyObject *seq)
 p_teca_variant_array new_variant_array(PyObject *seq)
 {
     // not a sequence
-    if (!PySequence_Check(seq) || PyString_Check(seq))
+    if (!PySequence_Check(seq) || PyUnicode_Check(seq))
         return nullptr;
 
     // nothing to do

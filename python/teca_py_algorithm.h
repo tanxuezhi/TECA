@@ -15,7 +15,7 @@
 #define TECA_PY_CALLBACK_ERROR(_phase, _cb_obj)             \
     {                                                       \
     PyObject *cb_str = PyObject_Str(_cb_obj);               \
-    const char *cb_c_str = PyString_AsString(cb_str);       \
+    const char *cb_c_str = PyUnicode_AsUTF8(cb_str);        \
                                                             \
     TECA_ERROR("An exception ocurred when invoking the "    \
     "user supplied Python callback \"" << cb_c_str << "\""  \

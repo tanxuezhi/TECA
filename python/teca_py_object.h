@@ -16,8 +16,8 @@ if know the Python type tag then this class gives you:
 ::value -- convert given PyObject to its C++ type
 
 Python type tags and their coresponding PyObject's are:
-int --> PyInt, long --> PyLong, bool --> PyBool,
-float --> PyFloat, char* --> PyString
+int --> PyLong, long --> PyLong, bool --> PyBool,
+float --> PyFloat, char* --> PyUnicode
 */
 template <typename py_t> struct cpp_tt
 {};
@@ -34,11 +34,11 @@ template <> struct cpp_tt<PY_T>                                         \
     static bool is_type(PyObject *obj) { return PY_CHECK(obj); }        \
     static type value(PyObject *obj) { return PY_AS_CPP(obj); }         \
 };
-teca_py_object_cpp_tt_declare(int, long, PyInt_Check, PyInt_AsLong)
+teca_py_object_cpp_tt_declare(int, long, PyLong_Check, PyLong_AsLong)
 teca_py_object_cpp_tt_declare(long, long, PyLong_Check, PyLong_AsLong)
 teca_py_object_cpp_tt_declare(float, double, PyFloat_Check, PyFloat_AsDouble)
-teca_py_object_cpp_tt_declare(char*, std::string, PyString_Check, PyString_AsString)
-teca_py_object_cpp_tt_declare(bool, int, PyBool_Check, PyInt_AsLong)
+teca_py_object_cpp_tt_declare(char*, std::string, PyUnicode_Check, PyUnicode_AsUTF8)
+teca_py_object_cpp_tt_declare(bool, int, PyBool_Check, PyLong_AsLong)
 
 /// py_tt, traits class for working with PyObject's
 /**
@@ -71,16 +71,16 @@ template <> struct py_tt<CPP_T>                             \
     static PyObject *new_object(CPP_T val)                  \
     { return CPP_AS_PY(val); }                              \
 };
-teca_py_object_py_tt_declare(char, int, PyInt_FromLong)
-teca_py_object_py_tt_declare(short, int, PyInt_FromLong)
-teca_py_object_py_tt_declare(int, int, PyInt_FromLong)
-teca_py_object_py_tt_declare(long, int, PyInt_FromLong)
-teca_py_object_py_tt_declare(long long, int, PyInt_FromSsize_t)
-teca_py_object_py_tt_declare(unsigned char, int, PyInt_FromSize_t)
-teca_py_object_py_tt_declare(unsigned short, int, PyInt_FromSize_t)
-teca_py_object_py_tt_declare(unsigned int, int, PyInt_FromSize_t)
-teca_py_object_py_tt_declare(unsigned long, int, PyInt_FromSize_t)
-teca_py_object_py_tt_declare(unsigned long long, int, PyInt_FromSize_t)
+teca_py_object_py_tt_declare(char, int, PyLong_FromLong)
+teca_py_object_py_tt_declare(short, int, PyLong_FromLong)
+teca_py_object_py_tt_declare(int, int, PyLong_FromLong)
+teca_py_object_py_tt_declare(long, int, PyLong_FromLong)
+teca_py_object_py_tt_declare(long long, int, PyLong_FromSsize_t)
+teca_py_object_py_tt_declare(unsigned char, int, PyLong_FromSize_t)
+teca_py_object_py_tt_declare(unsigned short, int, PyLong_FromSize_t)
+teca_py_object_py_tt_declare(unsigned int, int, PyLong_FromSize_t)
+teca_py_object_py_tt_declare(unsigned long, int, PyLong_FromSize_t)
+teca_py_object_py_tt_declare(unsigned long long, int, PyLong_FromSize_t)
 teca_py_object_py_tt_declare(float, float, PyFloat_FromDouble)
 teca_py_object_py_tt_declare(double, float, PyFloat_FromDouble)
 // strings are a special case
@@ -88,7 +88,7 @@ template <> struct py_tt<std::string>
 {
     typedef char* tag;
     static PyObject *new_object(const std::string &s)
-    { return PyString_FromString(s.c_str()); }
+    { return PyUnicode_FromString(s.c_str()); }
 };
 // TODO -- special case for teca_metadata
 

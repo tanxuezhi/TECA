@@ -246,8 +246,8 @@ TECA_PY_DYNAMIC_CAST(teca_table, teca_dataset)
         if (PyInt_Check(id))
             col = self->get_column(PyInt_AsLong(id));
         else
-        if (PyString_Check(id))
-            col = self->get_column(PyString_AsString(id));
+        if (PyUnicode_Check(id))
+            col = self->get_column(PyUnicode_AsUTF8(id));
 
         if (!col)
         {
@@ -345,7 +345,7 @@ TECA_PY_DYNAMIC_CAST(teca_table, teca_dataset)
 
         for (Py_ssize_t i = 0; i < n_names; ++i)
         {
-            const char *name = PyString_AsString(PyList_GetItem(names, i));
+            const char *name = PyUnicode_AsUTF8(PyList_GetItem(names, i));
             if (!name)
             {
                 PyErr_Format(PyExc_TypeError,
@@ -353,7 +353,7 @@ TECA_PY_DYNAMIC_CAST(teca_table, teca_dataset)
                 return;
             }
 
-            const char *type = PyString_AsString(PyList_GetItem(types, i));
+            const char *type = PyUnicode_AsUTF8(PyList_GetItem(types, i));
             if (!type)
             {
                 PyErr_Format(PyExc_TypeError,
@@ -393,7 +393,7 @@ TECA_PY_DYNAMIC_CAST(teca_table, teca_dataset)
         }
 
         // sequences
-        if (PySequence_Check(obj) && !PyString_Check(obj))
+        if (PySequence_Check(obj) && !PyUnicode_Check(obj))
         {
             long n_items = PySequence_Size(obj);
             for (long i = 0; i < n_items; ++i)
